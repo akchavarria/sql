@@ -1,0 +1,66 @@
+USE <DatabaseName>
+GO
+
+CREATE PROCEDURE dbo.spDropLocalTemporaryTableIfExists(
+	@TableName nvarchar(128)
+)
+AS
+/**************************************************************************************************
+DATE		AUTHOR
+7/31/18		Alejandro
+
+PURPOSE
+Drops local temporary table (single #) if it exists.
+
+PARAMETERS
+	@TableName	Name of the temporary table without the #
+
+TICKETS
+Date		Ticket			Description
+7/31/18		NHITAP-36		Review General Ledger Tool (put the existing version of this procedure
+							in my template so I could upload it to Git)
+
+TEST CODE
+EXEC dbo.spDropLocalTemporaryTableIfExists 'TestTable'
+**************************************************************************************************/
+BEGIN
+	SET XACT_ABORT, NOCOUNT ON;
+	BEGIN TRY
+		--Begin a transaction if there is not already an open one
+		DECLARE @ExistsLocalTransaction bit = 0;
+		IF @@TRANCOUNT = 0
+		BEGIN
+			BEGIN TRANSACTION;
+			SELECT @ExistsLocalTransaction = 1;
+		END;
+
+			--Error checks
+			IF @TableName LIKE '%#%'
+			BEGIN
+				RAISERROR('Invalid @TableName parameter passed to dbo.DropLocalTemporaryTableIfExists.',16,1);
+			END;
+		
+			--Save the actual name of the table by adding the # to it
+			SELECT @TableName = '#' + @TableName
+
+			--If it exists, drop it using dynamic SQL
+			IF OBJECT_ID('tempdb..' + @TableName) IS NOT NULL
+			BEGIN
+				DECLARE @SQL nvarchar(149) = 'DROP TABLE ' + @TableName;
+				EXECUTE sp_executesql @SQL;
+			END;
+
+		--Only commit the transaction if this procedure opened it
+		IF @ExistsLocalTransaction = 1 COMMIT TRANSACTION;
+	END TRY
+	BEGIN CATCH
+		IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+		
+		DECLARE
+			@ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE(),
+			@ErrorSeverity INT = ERROR_SEVERITY(),
+			@ErrorState INT = ERROR_STATE();
+
+		RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+	END CATCH
+END
