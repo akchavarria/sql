@@ -1,0 +1,99 @@
+USE <DatabaseName>
+GO
+
+CREATE PROCEDURE dbo.spAddUpdateTableComment(
+	@SchemaName sysname,
+	@TableName sysname,
+	@TableComment nvarchar(3750)
+)
+AS
+/**************************************************************************************************
+DATE		AUTHOR
+3/16/2018	Alejandro
+
+PURPOSE
+Adds or updates an existing 'TableComment' extended property on the specified table.
+
+PARAMETERS
+	@SchemaName		Schema the table is in
+	@TableName		Name of the table
+	@TableComment	Comment to create for the table or replace the existing with
+
+TICKETS
+Date		Ticket			Description
+3/16/2018	NHDBTAD-144		Employees with submitter/approver issues - was creating a script to 
+							create the Payroll.EmployeeSettings table and realized that it would be
+							best if comments could be saved with the tables and updated every time
+							a modification was made to a table. The only way to do this is to add
+							an extended property to the table itself. For the simplicity of the 
+							code, I decided to create this script which would add the extended
+							property if it didn't already exist (first time the table is getting
+							created) or update it if it already existed (altering an existing
+							table).
+7/31/18		NHITAP-36		Review General Ledger Tool (put the existing version of this procedure
+							in my template so I could upload it to Git)
+
+TEST CODE
+EXEC dbo.spAddUpdateTableComment 'Payroll', 'EmployeeSettings', 'Test comment'
+**************************************************************************************************/
+BEGIN
+	SET XACT_ABORT, NOCOUNT ON;
+	BEGIN TRY
+		--Begin a transaction if there is not already an open one
+		DECLARE @ExistsLocalTransaction bit = 0;
+		IF @@TRANCOUNT = 0
+		BEGIN
+			BEGIN TRANSACTION;
+			SELECT @ExistsLocalTransaction = 1;
+		END;
+
+			----Error checks
+			--IF <ErrorCondition>
+			--BEGIN
+			--	RAISERROR('<ErrorMessage>. Transaction terminated.',16,1);
+			--END;
+		
+			IF
+				EXISTS(
+					SELECT *
+					FROM
+						fn_listextendedproperty(
+							'TableComment',	--property_name
+							'Schema',		--level0_object_type
+							@SchemaName,	--level0_object_name
+							'Table',		--level1_object_type
+							@TableName,		--level1_object_name
+							default,		--level2_object_type
+							default			--level2_object_name
+						)
+				)
+			BEGIN
+				EXECUTE sp_updateextendedproperty
+					@name = 'TableComment',
+					@value = @TableComment,
+					@level0type = 'Schema', @level0name = @SchemaName,
+					@level1type = 'Table',  @level1name = @TableName;
+			END
+			ELSE
+			BEGIN
+				EXECUTE sp_addextendedproperty
+					@name = 'TableComment',
+					@value = @TableComment,
+					@level0type = 'Schema', @level0name = @SchemaName,
+					@level1type = 'Table',  @level1name = @TableName;
+			END;
+			
+		--Only commit the transaction if this procedure opened it
+		IF @ExistsLocalTransaction = 1 COMMIT TRANSACTION;
+	END TRY
+	BEGIN CATCH
+		IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+		
+		DECLARE
+			@ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE(),
+			@ErrorSeverity INT = ERROR_SEVERITY(),
+			@ErrorState INT = ERROR_STATE();
+
+		RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+	END CATCH
+END
