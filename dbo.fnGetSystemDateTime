@@ -1,4 +1,4 @@
-USE <DatabaseName>
+USE <DatabaseName>;
 GO
 
 CREATE FUNCTION dbo.fnGetSystemDateTime()
@@ -24,5 +24,5 @@ RETURNS datetime2(2)
 AS
 BEGIN
 	RETURN SYSDATETIME();
-END
+END;
 GO
