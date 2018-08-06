@@ -1,0 +1,28 @@
+USE <DatabaseName>
+GO
+
+CREATE FUNCTION dbo.fnGetCurrentUsername()
+/**************************************************************************************************
+DATE		AUTHOR
+8/6/18		Alejandro
+
+PURPOSE
+Returns the current username
+
+PARAMETERS
+	None
+
+TICKETS
+Date		Ticket			Description
+8/6/18		NHITAP-36		Review General Ledger Tool (putting in template and adding header so I
+							can store in GitHub)
+
+TEST CODE
+SELECT dbo.fnGetCurrentUsername()
+**************************************************************************************************/
+RETURNS nvarchar(128)
+AS
+BEGIN
+	RETURN SUSER_NAME();
+END
+GO
