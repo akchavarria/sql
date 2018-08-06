@@ -1,4 +1,4 @@
-USE TAD
+USE <DatabaseName>
 GO
 
 CREATE FUNCTION dbo.fnGetSystemDateTime()
