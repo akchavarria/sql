@@ -1,0 +1,70 @@
+USE <DatabaseName>
+GO
+
+CREATE FUNCTION dbo.fnMatchText(
+	@InputString varchar(255),
+	@AllowNumeric bit = 0
+)
+/**************************************************************************************************
+DATE		AUTHOR
+7/18/18		Alejandro
+
+PURPOSE
+Removes all vowels and non-alphabetic characters from a string (original function preserved numeric
+characters, but that is commented out below - uncomment if useful) and converts all characters to
+uppercase. Intended to be used before sending a string to the dbo.CompareText function to reduce
+the number of comparisons it has to make and thereby increase efficiency.
+
+Originally taken from https://sites.google.com/site/sqlblindman/fuzzysearchalgorithm
+
+Comments from original:
+
+	blindman, 7/2005
+	Strips a string of all vowels and non-alphanumeric characters.
+
+PARAMETERS
+	@InputString	String from which to strip characters and convert to uppercase
+	@AllowNumeric	If 0 (default), string returned will only contain alphabetic characters; If 1,
+					string will contain alphanumeric characters)
+
+TICKETS
+Date		Ticket			Description
+
+TEST CODE
+SELECT dbo.MatchText('Bruce a. Lindman')
+**************************************************************************************************/
+RETURNS varchar(255)
+BEGIN
+	--Create a string that is all in uppercase and devoid of vowels
+	DECLARE @TempString varchar(255) =
+		REPLACE(
+			REPLACE(
+				REPLACE(
+					REPLACE(
+						REPLACE(
+							UPPER(@InputString),
+						'U', ''),
+					'O', ''),
+				'I', ''),
+			'E', ''),
+		'A', '');
+
+	--Build @OutputString with only alphabetic characters (uncomment appropriate lines if alphanumeric characters desired instead)
+	DECLARE @CharNum integer = 1;
+	DECLARE @OutputString varchar(255) = '';
+	DECLARE @TestChar char(1);
+	WHILE @CharNum <= LEN(@TempString)
+	BEGIN
+		SET @TestChar = SUBSTRING(@TempString, @CharNum, 1);
+		IF
+			@TestChar BETWEEN 'A' AND 'Z' OR
+			@AllowNumeric = 1 AND @TestChar BETWEEN '0' AND '9'
+		BEGIN
+			SET @OutputString = @OutputString + @TestChar
+		END;
+		SET @CharNum = @CharNum + 1;
+	END;
+
+	RETURN @OutputString;
+END;
+GO
