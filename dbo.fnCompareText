@@ -12,7 +12,7 @@ DATE		AUTHOR
 PURPOSE
 Compares substrings between two strings and determines the percentage of times the substring of one
 is found in the other out of all possible times that could happen. Intended to be used in
-conjunction with dbo.MatchText() to increase efficiency.
+conjunction with dbo.fnMatchText() to increase efficiency.
 
 Originally taken from https://sites.google.com/site/sqlblindman/fuzzysearchalgorithm
 
