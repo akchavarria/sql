@@ -1,0 +1,82 @@
+USE <DatabaseName>
+GO
+
+CREATE FUNCTION dbo.fnCompareText(
+	@String1 varchar(255),
+	@String2 varchar(255)
+)
+/**************************************************************************************************
+DATE		AUTHOR
+7/18/18		Alejandro
+
+PURPOSE
+Compares substrings between two strings and determines the percentage of times the substring of one
+is found in the other out of all possible times that could happen. Intended to be used in
+conjunction with dbo.MatchText() to increase efficiency.
+
+Originally taken from https://sites.google.com/site/sqlblindman/fuzzysearchalgorithm
+
+Comments from original:
+
+	This function accepts two string values and returns an integer value between zero and one
+	hundred indicating the similarity between the two string.  This algorithm was developed
+	specifically to search for similar names, spelling variations, and typos in proper names and
+	business names.  For this purpose, it is superior to SOUNDEX, which searches only for similar
+	sounding words.
+
+	Proper name pairs which yield a fnCompareText value above 80 are very likely to represent the
+	same person.  Pair values greater than 60 should be reviewed manually to confirm the match.
+	For greater accuracy and efficiency, run the names through the MatchText function to remove
+	spaces and vowels before submitting them to compare text.
+
+	For efficiency in comparing two large lists of names, it is best to join the sets on another
+	column as well, such as zip code, or city name.
+
+	blindman 4/2005
+	Adapted from MS Access algorithm developed 1997
+
+PARAMETERS
+	@String1	String to compare to @String2
+	@String2	String to compare to @String1
+
+TICKETS
+Date		Ticket			Description
+
+TEST CODE
+SELECT dbo.fnCompareText(dbo.MatchText('Alan Smith'), dbo.MatchText('Smith, Alan J.'))
+**************************************************************************************************/
+RETURNS integer
+BEGIN
+	--Determine total number of times a two-character substring of one string could appear in the other
+	DECLARE @Possibles integer = LEN(@String1) + LEN(@String2) - 2;
+	IF @Possibles <= 0 RETURN 0;
+		
+	--Create variable to hold the actual number of times a two-character substring of one string appears in the other
+	DECLARE @Hits integer = 0
+	
+	--Determine the number of times a two-character substring of @String1 appears in @String2
+	DECLARE @Counter integer = LEN(@String1) - 1;
+	WHILE @Counter > 0
+	BEGIN
+		IF CHARINDEX(SUBSTRING(@String1, @Counter, 2), @String2) > 0
+		BEGIN
+			SET @Hits = @Hits + 1
+		END;
+
+		SET @Counter = @Counter - 1;
+	END;
+
+	--Determine the number of times a two-character substring of @String2 appears in @String1
+	SET @Counter = LEN(@String2) - 1;
+	WHILE @Counter > 0
+	BEGIN
+		IF CHARINDEX(SUBSTRING(@String2, @Counter, 2), @String1) > 0
+		BEGIN
+			SET @Hits = @Hits + 1
+		END;
+		SET @Counter = @Counter - 1;
+	END;
+	
+	--Return a percentage representing the number of times a substring of one string appeared in the other out of the total number of times that would have been possible
+	RETURN (100 * @Hits) / @Possibles;
+END;
