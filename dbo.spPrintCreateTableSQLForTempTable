@@ -1,6 +1,12 @@
 USE tempdb
 GO
 
+--Get temp table name with the following code
+SELECT *
+FROM sys.objects
+WHERE
+	name LIKE '#' + 'MIPReconciliation + '%'
+
 DECLARE @table_name nvarchar(500)
 SELECT @table_name = 'dbo.#MIPReconciliation__________________________________________________________________________________________________00000000027F'
 
