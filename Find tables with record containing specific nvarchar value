@@ -1,0 +1,174 @@
+--Generates SQL to look through all user-defined tables for any records where any of the columns for any of the records equal a specific nvarchar value. If there is a match, the records that match are selected and displayed in the query results window.
+
+DECLARE
+	@SearchTerm nvarchar(100) = '2018_Agncy_Orig',
+	@NVarcharLength int = 1000,
+	--If you want to search all tables, make @SpecificSchema and @SpecificTable NULL
+	@SpecificSchema sysname = NULL,
+	@SpecificTable sysname = NULL;
+
+WITH
+	ObjectNames
+	AS
+	(
+		SELECT
+			o.object_id AS ObjectID,
+			s.name AS SchemaName,
+			o.name AS ObjectName
+		FROM
+			sys.objects o INNER JOIN
+			sys.schemas s
+				ON o.schema_id = s.schema_id
+		WHERE
+			o.type = 'U' AND
+			(
+				@SpecificSchema IS NULL OR
+				s.name = @SpecificSchema
+			) AND
+			(
+				@SpecificTable IS NULL OR
+				o.name = @SpecificTable
+			)
+	),
+	ColumnNames
+	AS
+	(
+		SELECT
+			o.ObjectID,
+			o.SchemaName,
+			o.ObjectName,
+			c.column_id ColumnIndex,
+			c.name AS ColumnName,
+			t.name AS ColumnTypeName
+		FROM
+			ObjectNames o INNER JOIN
+			sys.columns c
+				ON o.ObjectID = c.object_id INNER JOIN
+			sys.types t
+				ON c.user_type_id = t.user_type_id
+		WHERE t.name NOT IN ('timestamp','image','sql_variant','xml','hierarchyid')
+	),
+	ObjectNamesWithColumnNames
+	AS
+	(
+		SELECT DISTINCT
+			o.ObjectID,
+			o.SchemaName,
+			o.ObjectName
+		FROM
+			ObjectNames o INNER JOIN
+			ColumnNames c
+				ON o.ObjectID = c.ObjectID
+	),
+	MaxColumnIndexes
+	AS
+	(
+		SELECT
+			ObjectID,
+			MAX(ColumnIndex) AS MaxOfColumnIndex
+		FROM ColumnNames
+		GROUP BY ObjectID
+	),
+	ColumnNamesWithMaxColumnIndexes
+	AS
+	(
+		SELECT
+			c.ObjectID,
+			c.SchemaName,
+			c.ObjectName,
+			m.MaxOfColumnIndex,
+			c.ColumnIndex,
+			c.ColumnName,
+			c.ColumnTypeName
+		FROM
+			ColumnNames c INNER JOIN
+			MaxColumnIndexes m
+				ON c.ObjectID = m.ObjectID
+	),
+	DataToMakeTSQL
+	AS
+	(
+		SELECT
+			1 AS SetNumber,
+			1 AS ObjectColumnSort,
+			ObjectID,
+			SchemaName,
+			ObjectName,
+			NULL AS MaxOfColumnIndex,
+			NULL AS ColumnIndex,
+			NULL AS ColumnName
+		FROM ObjectNamesWithColumnNames
+
+		UNION ALL
+
+		SELECT
+			1 AS SetNumber,
+			2 AS ObjectColumnSort,
+			ObjectID,
+			NULL AS SchemaName,
+			NULL AS ObjectName,
+			MaxOfColumnIndex,
+			ColumnIndex,
+			ColumnName
+		FROM ColumnNamesWithMaxColumnIndexes
+
+		UNION ALL
+
+		SELECT
+			2 AS SetNumber,
+			1 AS ObjectColumnSort,
+			ObjectID,
+			SchemaName,
+			ObjectName,
+			NULL AS MaxOfColumnIndex,
+			NULL AS ColumnIndex,
+			NULL AS ColumnName
+		FROM ObjectNamesWithColumnNames
+
+		UNION ALL
+
+		SELECT
+			2 AS SetNumber,
+			2 AS ObjectColumnSort,
+			ObjectID,
+			NULL AS SchemaName,
+			NULL AS ObjectName,
+			MaxOfColumnIndex,
+			ColumnIndex,
+			ColumnName
+		FROM ColumnNamesWithMaxColumnIndexes
+	)
+SELECT
+	CASE
+		WHEN SetNumber = 1 AND ObjectColumnSort = 1 THEN
+			'IF
+	EXISTS(
+		SELECT *
+		FROM ' + SchemaName + '.' + ObjectName + '
+		WHERE
+'
+		WHEN SetNumber = 1 AND ObjectColumnSort = 2 AND MaxOfColumnIndex <> ColumnIndex THEN
+			'			CAST(' + ColumnName + ' AS nvarchar(' + CAST(@NVarcharLength AS nvarchar(10)) + ')) =  ''' + @SearchTerm + ''' OR
+'
+		WHEN SetNumber = 1 AND ObjectColumnSort = 2 AND MaxOfColumnIndex = ColumnIndex THEN
+			'			CAST(' + ColumnName + ' AS nvarchar(' + CAST(@NVarcharLength AS nvarchar(10)) + ')) =  ''' + @SearchTerm + '''
+	)
+'
+		WHEN SetNumber = 2 and ObjectColumnSort = 1 THEN
+			'	SELECT ''' + SchemaName + '.' + ObjectName + ''' AS TableName, *
+	FROM ' + SchemaName + '.' + ObjectName + '
+	WHERE
+'
+		WHEN SetNumber = 2 AND ObjectColumnSort = 2 AND MaxOfColumnIndex <> ColumnIndex THEN
+			'		CAST(' + ColumnName + ' AS nvarchar(' + CAST(@NVarcharLength AS nvarchar(10)) + ')) =  ''' + @SearchTerm + ''' OR
+'
+		WHEN SetNumber = 2 AND ObjectColumnSort = 2 AND MaxOfColumnIndex = ColumnIndex THEN
+			'		CAST(' + ColumnName + ' AS nvarchar(' + CAST(@NVarcharLength AS nvarchar(10)) + ')) =  ''' + @SearchTerm + '''
+
+'
+	END
+FROM DataToMakeTSQL
+ORDER BY
+	ObjectID,
+	SetNumber,
+	ObjectColumnSort
