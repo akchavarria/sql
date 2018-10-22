@@ -1,0 +1,54 @@
+USE <DatabaseName>
+GO
+
+CREATE FUNCTION DatabaseAdministration.fnDropCreateDefaultConstraintsWhereDefinitionContainsString(
+	@SearchString nvarchar(1000)
+)
+/**************************************************************************************************
+DATE		AUTHOR
+10/22/18	Alejandro
+
+PURPOSE
+Returns a set of SQL statemets that allow the user to drop and then re-create all default
+constraints whose definition contains a specific string. Helpful for when you need to modify a
+function that is referenced in numerous default constraints as SQL Server prevents this without
+dropping and re-creating the constraints.
+
+PARAMETERS
+	@SearchString	String to search the constraints' definitions for
+
+TICKETS
+Date		Ticket			Description
+10/19/18	NHITAP-41		Create credit card purchase expensing tool (created to help modify
+							function dbo.fnGetCurrentPayPeriodID)
+
+TEST CODE
+SELECT * FROM DatabaseAdministration.fnDropCreateDefaultConstraintsWhereDefinitionContainsString('fnGetCurrentPayPeriodID')
+**************************************************************************************************/
+RETURNS TABLE
+AS
+RETURN
+(
+	SELECT
+		'ALTER TABLE ' + s.name + '.' + o.name + CHAR(13) + CHAR(10) +
+		'DROP CONSTRAINT ' + d.name + CHAR(13) + CHAR(10) AS DropConstraintSQL,
+		'ALTER TABLE ' + s.name + '.' + o.name + CHAR(13) + CHAR(10) +
+		' ADD CONSTRAINT ' + d.name + ' DEFAULT (' + CHAR(13) + CHAR(10) +
+		'	' + d.definition + CHAR(13) + CHAR(10) +
+		') FOR ' + c.name + CHAR(13) + CHAR(10) AS CreateConstraintSQL
+	FROM
+		sys.default_constraints AS d
+			INNER JOIN
+		sys.objects AS o ON
+			d.parent_object_id = o.object_id
+			INNER JOIN
+		sys.schemas AS s ON
+			o.schema_id = s.schema_id
+			INNER JOIN
+		sys.columns AS c ON
+			d.parent_object_id = c.object_id AND
+			d.parent_column_id = c.column_id
+	WHERE
+		definition LIKE '%' + @SearchString + '%'
+);
+GO
