@@ -1,0 +1,74 @@
+USE DatabaseAdministration;
+GO
+
+CREATE FUNCTION dbo.fnIsTodayFirstMondayOfMonth()
+/**************************************************************************************************
+DATE		AUTHOR
+7/10/19		Alejandro
+
+PURPOSE
+Determines if today is the 1st Monday of the month or not. Returns 1 if it is, 0 if not.
+
+PARAMETERS
+	none
+
+TICKETS
+Date		Ticket			Description
+none
+
+TEST CODE
+SELECT dbo.fnIsTodayFirstMondayOfMonth()
+**************************************************************************************************/
+RETURNS bit
+AS
+BEGIN
+	DECLARE @Result bit;
+
+	DECLARE
+		@TodaysDate date = CAST(GETDATE() AS date);
+
+	DECLARE
+		@FirstMonday date =
+			--Determine the first Monday of month @TodaysDate is in
+			--Obtained from https://sqlandme.com/2011/05/18/how-to-get-first-monday-week-month-tsql/ 7/10/2019
+			(
+				SELECT
+					--Add a certain # of weeks to day 0 (1/1/1900 which is a Monday)
+					DATEADD(
+						--interval
+						WEEK,
+						--increment
+						--Find # of weeks between day 0 and the 6th of the month @TodaysDate is in
+						--The 6th of the month will always be in the same week as the 1st Monday (can be mathematically proven)
+						DATEDIFF(
+							--interval
+							WEEK,
+							--starting_date
+							0,
+							--ending_date
+							--Find the 6th of the month @TodaysDate is in
+							DATEADD(
+								--interval
+								DAY,
+								--increment
+								6 - DATEPART(DAY, @TodaysDate),
+								--date
+								@TodaysDate
+							)
+						),
+						--date
+						0
+					)
+			);
+
+	SELECT
+		@Result = 
+			CASE
+				WHEN @TodaysDate = @FirstMonday THEN
+					1
+				ELSE
+					0
+			END;
+
+	RETURN @Result;
+END;
